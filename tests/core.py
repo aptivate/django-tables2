@@ -1,24 +1,24 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 """Test the core table functionality."""
 from __future__ import absolute_import
-from attest import assert_hook, Assert, Tests
+from attest import assert_hook, raises, Tests, warns
 import copy
-from django.core.paginator import Paginator
-from django.http import Http404
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 import django_tables2 as tables
+from django_tables2.tables import DeclarativeColumnsMetaclass
 from haystack.query import SearchQuerySet
 
 
 core = Tests()
 
 
-class UnsortedTable(tables.Table):
+class UnorderedTable(tables.Table):
     i = tables.Column()
     alpha = tables.Column()
     beta = tables.Column()
 
 
-class SortedTable(UnsortedTable):
+class OrderedTable(UnorderedTable):
     class Meta:
         order_by = 'alpha'
 
@@ -59,6 +59,38 @@ def declarations():
 
 
 @core.test
+def metaclass_inheritance():
+    class Tweaker(type):
+        """Adds an attribute "tweaked" to all classes"""
+        def __new__(cls, name, bases, attrs):
+            attrs['tweaked'] = True
+            return super(Tweaker, cls).__new__(cls, name, bases, attrs)
+
+    class Meta(Tweaker, DeclarativeColumnsMetaclass):
+        pass
+
+    class TweakedTable(tables.Table):
+        __metaclass__ = Meta
+        name = tables.Column()
+
+    table = TweakedTable([])
+    assert 'name' in table.columns
+    assert table.tweaked
+
+    # now flip the order
+    class FlippedMeta(DeclarativeColumnsMetaclass, Tweaker):
+        pass
+
+    class FlippedTweakedTable(tables.Table):
+        __metaclass__ = FlippedMeta
+        name = tables.Column()
+
+    table = FlippedTweakedTable([])
+    assert 'name' in table.columns
+    assert table.tweaked
+
+
+@core.test
 def attrs():
     class TestTable(tables.Table):
         class Meta:
@@ -82,18 +114,25 @@ def attrs():
 
 
 @core.test
+def data_knows_its_name():
+    table = tables.Table([{}])
+    assert table.data.verbose_name == "item"
+    assert table.data.verbose_name_plural == "items"
+
+
+@core.test
 def datasource_untouched():
     """Ensure that data that is provided to the table (the datasource) is not
     modified by table operations.
     """
     original_data = copy.deepcopy(MEMORY_DATA)
 
-    table = UnsortedTable(MEMORY_DATA)
+    table = UnorderedTable(MEMORY_DATA)
     table.order_by = 'i'
     list(table.rows)
     assert MEMORY_DATA == original_data
 
-    table = UnsortedTable(MEMORY_DATA)
+    table = UnorderedTable(MEMORY_DATA)
     table.order_by = 'beta'
     list(table.rows)
     assert MEMORY_DATA == original_data
@@ -121,47 +160,49 @@ def should_support_haystack_data_source():
 
 
 @core.test
-def sorting():
+def ordering():
     # fallback to Table.Meta
-    assert ('alpha', ) == SortedTable([], order_by=None).order_by == SortedTable([]).order_by
+    assert ('alpha', ) == OrderedTable([], order_by=None).order_by == OrderedTable([]).order_by
 
     # values of order_by are wrapped in tuples before being returned
-    assert SortedTable([], order_by='alpha').order_by   == ('alpha', )
-    assert SortedTable([], order_by=('beta',)).order_by == ('beta', )
+    assert OrderedTable([], order_by='alpha').order_by   == ('alpha', )
+    assert OrderedTable([], order_by=('beta',)).order_by == ('beta', )
 
-    # "no sorting"
-    table = SortedTable([])
+    table = OrderedTable([])
     table.order_by = []
-    assert () == table.order_by == SortedTable([], order_by=[]).order_by
+    assert () == table.order_by == OrderedTable([], order_by=[]).order_by
 
-    table = SortedTable([])
+    table = OrderedTable([])
     table.order_by = ()
-    assert () == table.order_by == SortedTable([], order_by=()).order_by
+    assert () == table.order_by == OrderedTable([], order_by=()).order_by
 
-    table = SortedTable([])
+    table = OrderedTable([])
     table.order_by = ''
-    assert () == table.order_by == SortedTable([], order_by='').order_by
+    assert () == table.order_by == OrderedTable([], order_by='').order_by
 
-    # apply a sorting
-    table = UnsortedTable([])
+    # apply an ordering
+    table = UnorderedTable([])
     table.order_by = 'alpha'
-    assert ('alpha', ) == UnsortedTable([], order_by='alpha').order_by == table.order_by
+    assert ('alpha', ) == UnorderedTable([], order_by='alpha').order_by == table.order_by
 
-    table = SortedTable([])
+    table = OrderedTable([])
     table.order_by = 'alpha'
-    assert ('alpha', ) == SortedTable([], order_by='alpha').order_by  == table.order_by
+    assert ('alpha', ) == OrderedTable([], order_by='alpha').order_by  == table.order_by
 
     # let's check the data
-    table = SortedTable(MEMORY_DATA, order_by='beta')
+    table = OrderedTable(MEMORY_DATA, order_by='beta')
     assert 3 == table.rows[0]['i']
 
-    # allow fallback to Table.Meta.order_by
-    table = SortedTable(MEMORY_DATA)
+    table = OrderedTable(MEMORY_DATA, order_by='-beta')
     assert 1 == table.rows[0]['i']
 
-    # column's can't be sorted if they're not allowed to be
+    # allow fallback to Table.Meta.order_by
+    table = OrderedTable(MEMORY_DATA)
+    assert 1 == table.rows[0]['i']
+
+    # column's can't be ordered if they're not allowed to be
     class TestTable2(tables.Table):
-        a = tables.Column(sortable=False)
+        a = tables.Column(orderable=False)
         b = tables.Column()
 
     table = TestTable2([], order_by='a')
@@ -170,13 +211,13 @@ def sorting():
     table = TestTable2([], order_by='b')
     assert table.order_by == ('b', )
 
-    # sorting disabled by default
+    # ordering disabled by default
     class TestTable3(tables.Table):
-        a = tables.Column(sortable=True)
+        a = tables.Column(orderable=True)
         b = tables.Column()
 
         class Meta:
-            sortable = False
+            orderable = False
 
     table = TestTable3([], order_by='a')
     assert table.order_by == ('a', )
@@ -184,12 +225,26 @@ def sorting():
     table = TestTable3([], order_by='b')
     assert table.order_by == ()
 
-    table = TestTable3([], sortable=True, order_by='b')
+    table = TestTable3([], orderable=True, order_by='b')
     assert table.order_by == ('b', )
+
+    with warns(DeprecationWarning) as captured:
+        tables.Column(sortable=True)
+        tables.Column(sortable=False)
+
+        class TestTable4(tables.Table):
+            class Meta:
+                sortable = True
+
+        class TestTable4(tables.Table):
+            class Meta:
+                sortable = False
+
+    assert len(captured) == 4
 
 
 @core.test
-def sorting_different_types():
+def ordering_different_types():
     from datetime import datetime
 
     data = [
@@ -198,14 +253,50 @@ def sorting_different_types():
         {'i': 2, 'alpha': None, 'beta': []},
     ]
 
-    table = SortedTable(data)
-    assert None == table.rows[0]['alpha']
+    table = OrderedTable(data)
+    assert u"—" == table.rows[0]['alpha']
 
-    table = SortedTable(data, order_by='i')
+    table = OrderedTable(data, order_by='i')
     assert 1 == table.rows[0]['i']
 
-    table = SortedTable(data, order_by='beta')
+    table = OrderedTable(data, order_by='beta')
     assert [] == table.rows[0]['beta']
+
+
+@core.test
+def multi_column_ordering():
+    brad   = {"first_name": "Bradley", "last_name": "Ayers"}
+    brad2  = {"first_name": "Bradley", "last_name": "Fake"}
+    chris  = {"first_name": "Chris",   "last_name": "Doble"}
+    stevie = {"first_name": "Stevie",  "last_name": "Armstrong"}
+    ross   = {"first_name": "Ross",    "last_name": "Ayers"}
+
+    people = [brad, brad2, chris, stevie, ross]
+
+    class PersonTable(tables.Table):
+        first_name = tables.Column()
+        last_name = tables.Column()
+
+    table = PersonTable(people, order_by=("first_name", "last_name"))
+    assert [brad, brad2, chris, ross, stevie] == [r.record for r in table.rows]
+
+    table = PersonTable(people, order_by=("first_name", "-last_name"))
+    assert [brad2, brad, chris, ross, stevie] == [r.record for r in table.rows]
+
+    # let's try column order_by using multiple keys
+    class PersonTable(tables.Table):
+        name = tables.Column(order_by=("first_name", "last_name"))
+
+    # add 'name' key for each person.
+    for person in people:
+        person['name'] = "{p[first_name]} {p[last_name]}".format(p=person)
+    assert brad['name'] == "Bradley Ayers"
+
+    table = PersonTable(people, order_by="name")
+    assert [brad, brad2, chris, ross, stevie] == [r.record for r in table.rows]
+
+    table = PersonTable(people, order_by="-name")
+    assert [stevie, ross, chris, brad2, brad] == [r.record for r in table.rows]
 
 
 @core.test
@@ -220,7 +311,7 @@ def column_count():
 
 @core.test
 def column_accessor():
-    class SimpleTable(UnsortedTable):
+    class SimpleTable(UnorderedTable):
         col1 = tables.Column(accessor='alpha.upper.isupper')
         col2 = tables.Column(accessor='alpha.upper')
     table = SimpleTable(MEMORY_DATA)
@@ -238,11 +329,11 @@ def exclude_columns():
     columns originally.
     """
     # Table(..., exclude=...)
-    table = UnsortedTable([], exclude=("i"))
+    table = UnorderedTable([], exclude=("i"))
     assert [c.name for c in table.columns] == ["alpha", "beta"]
 
     # Table.Meta: exclude=...
-    class PartialTable(UnsortedTable):
+    class PartialTable(UnorderedTable):
         class Meta:
             exclude = ("alpha", )
     table = PartialTable([])
@@ -255,7 +346,7 @@ def exclude_columns():
     assert [c.name for c in table.columns] == ["i", "beta", "added"]
 
     # Inheritence -- exclude in child
-    class ExcludeTable(UnsortedTable):
+    class ExcludeTable(UnorderedTable):
         added = tables.Column()
         class Meta:
             exclude = ("beta", )
@@ -306,13 +397,12 @@ def pagination():
     assert books.page.has_next() is True
 
     # accessing a non-existant page raises 404
-    with Assert.raises(Http404) as error:
+    with raises(EmptyPage):
         books.paginate(Paginator, page=9999, per_page=10)
-        assert books.page
 
-    with Assert.raises(Http404) as error:
+    with raises(PageNotAnInteger):
         books.paginate(Paginator, page='abc', per_page=10)
-        assert books.page
+
 
 @core.test
 def pagination_shouldnt_prevent_multiple_rendering():
@@ -453,3 +543,56 @@ def should_support_rendering_multiple_times():
     # test list data
     table = MultiRenderTable([{'name': 'brad'}])
     assert table.as_html() == table.as_html()
+
+
+@core.test
+def column_defaults_are_honored():
+    class Table(tables.Table):
+        name = tables.Column(default="abcd")
+
+        class Meta:
+            default = "efgh"
+
+    table = Table([{}], default="ijkl")
+    assert table.rows[0]['name'] == "abcd"
+
+
+@core.test
+def table_meta_defaults_are_honored():
+    class Table(tables.Table):
+        name = tables.Column()
+
+        class Meta:
+            default = "abcd"
+
+    table = Table([{}])
+    assert table.rows[0]['name'] == "abcd"
+
+
+@core.test
+def table_defaults_are_honored():
+    class Table(tables.Table):
+        name = tables.Column()
+
+    table = Table([{}], default="abcd")
+    assert table.rows[0]['name'] == "abcd"
+
+    table = Table([{}], default="abcd")
+    table.default = "efgh"
+    assert table.rows[0]['name'] == "efgh"
+
+
+@core.test
+def list_table_data_supports_ordering():
+    class Table(tables.Table):
+        name = tables.Column()
+
+    data = [
+        {"name": "Bradley"},
+        {"name": "Stevie"},
+    ]
+
+    table = Table(data)
+    assert table.rows[0]["name"] == "Bradley"
+    table.order_by = "-name"
+    assert table.rows[0]["name"] == "Stevie"

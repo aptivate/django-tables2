@@ -6,7 +6,7 @@ table.paleblue {
 
 table.paleblue,
 table.paleblue +  ul.pagination {
-    font: normal 11px/14px 'Lucida Grande', Helvetica, Verdana, Arial, sans-serif;
+    font: normal 11px/14px 'Lucida Grande', Verdana, Helvetica, Arial, sans-serif;
 }
 
 table.paleblue a:link,
@@ -48,17 +48,16 @@ table.paleblue thead td {
 table.paleblue thead th > a:link,
 table.paleblue thead th > a:visited {
     color: #666;
-    display: block;
 }
 
-table.paleblue thead th.sortable > a {
+table.paleblue thead th.orderable > a {
     padding-right: 20px;
     background: url(../img/arrow-inactive-up.png) right center no-repeat;
 }
-table.paleblue thead th.sortable.asc > a {
+table.paleblue thead th.orderable.asc > a {
     background-image: url(../img/arrow-active-up.png);
 }
-table.paleblue thead th.sortable.desc > a {
+table.paleblue thead th.orderable.desc > a {
     background-image: url(../img/arrow-active-down.png);
 }
 
@@ -87,6 +86,40 @@ table.paleblue + ul.pagination > li {
 
 table.paleblue + ul.pagination > li:first-child {
     margin-left: 0;
+}
+
+table.paleblue + ul.pagination > li.cardinality {
+    float: right;
+    color: #8d8d8d;
+}
+
+table.paleblue > tbody > tr > td > span.true,
+table.paleblue > tbody > tr > td > span.false {
+    background-position: top left;
+    background-repeat: no-repeat;
+    display: inline-block;
+    height: 10px;
+    overflow: hidden;
+    text-indent: -200px;
+    width: 10px;
+}
+
+table.paleblue > tbody > tr > td > .missing {
+    background: transparent url(../img/missing.png) right center no-repeat;
+    color: #717171;
+    padding-right: 20px;
+}
+
+table.paleblue > tbody > tr > td > .missing:hover {
+    color: #333;
+}
+
+table.paleblue > tbody > tr > td > span.true {
+    background-image: url(../img/true.gif);
+}
+
+table.paleblue > tbody > tr > td > span.false {
+    background-image: url(../img/false.gif);
 }
 
 div.table-container {

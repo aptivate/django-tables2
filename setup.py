@@ -1,11 +1,16 @@
 #!/usr/bin/env python
+import re
 from setuptools import setup, find_packages
+
+
+with open('django_tables2/__init__.py', 'rb') as f:
+    version = re.search('__version__ = "(.+?)"', f.read()).group(1)
 
 
 setup(
     name='django-tables2',
-    version='0.8.4',
-    description='Table framework for Django',
+    version=version,
+    description='Table/data-grid framework for Django',
 
     author='Bradley Ayers',
     author_email='bradley.ayers@gmail.com',
@@ -15,9 +20,7 @@ setup(
     packages=find_packages(exclude=['tests.*', 'tests', 'example.*', 'example']),
     include_package_data=True,  # declarations in MANIFEST.in
 
-    install_requires=['Django >=1.3'],
-    tests_require=['Django >=1.3', 'Attest >=0.4', 'django-attest >=0.2.2',
-                   'fudge', 'django-haystack', 'unittest-xml-reporting'],
+    install_requires=['Django >=1.2'],
 
     test_loader='tests:loader',
     test_suite='tests.everything',

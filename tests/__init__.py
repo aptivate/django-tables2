@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 from __future__ import absolute_import, unicode_literals
 import os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.app.settings'
@@ -12,10 +12,12 @@ from .models import models
 from .rows import rows
 from .templates import templates
 from .utils import utils
+from .views import views
 
 
 loader = django_attest.FancyReporter.test_loader
-everything = Tests([columns, config, core, models, rows, templates, utils])
+everything = Tests([columns, config, core, models, rows, templates, utils,
+                    views])
 
 
 # -----------------------------------------------------------------------------

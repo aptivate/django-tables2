@@ -2,13 +2,6 @@
 django-tables2 - An app for creating HTML tables
 ================================================
 
-.. note::
-
-    Prior to v0.6.0 this package was a fork of miracle2k's and both were known
-    as *django-tables*. This caused some problems (e.g. ambiguity and inability
-    to put this library on PyPI) so as of v0.6.0 this package is known as
-    *django-tables2*.
-
 django-tables2 simplifies the task of turning sets of data into HTML tables. It
 has native support for pagination and sorting. It does for HTML tables what
 ``django.forms`` does for HTML forms. e.g.
@@ -69,6 +62,160 @@ globally, use::
 
 Change log
 ==========
+
+v0.13.0
+-------
+
+- Add FileColumn.
+
+v0.12.1
+-------
+
+- When resolving an accessor, *all* exceptions are smothered into ``None``.
+
+v0.12.0
+-------
+
+- Improve performance by removing unnecessary queries
+- Simplified pagination:
+
+  - ``Table.page`` is an instance attribute (no longer ``@property``)
+  - Exceptions raised by paginators (e.g. ``EmptyPage``) are no longer
+    smothered by ``Table.page``
+  - Pagination exceptions are raised by ``Table.paginate``
+  - ``RequestConfig`` can handles pagination errors silently, can be disabled
+    by including ``silent=False`` in the ``paginate`` argument value
+
+- Add ``DateTimeColumn`` and ``DateColumn`` to handle formatting ``datetime``
+  and timezones.
+- Add ``BooleanColumn`` to handle bool values
+- ``render_table`` can now build and render a table for a queryset, rather than
+  needing to be passed a table instance
+- Table columns created automatically from a model now use specialised columns
+- ``Column.render`` is now skipped if the value is considered *empty*, the
+  default value is used instead. Empty values are specified via
+  ``Column.empty_values``, by default is ``(None, '')`` (backward incompatible)
+- Default values can now be specified on table instances or ``Table.Meta``
+- Accessor's now honor ``alters_data`` during resolving. Fixes issue that would
+  delete all your data when a column had an accessor of ``delete``
+- Add ``default`` and ``value`` to context of ``TemplateColumn``
+- Add cardinality indication to the pagination area of a table
+- ``Attrs`` is deprecated, use ``dict`` instead
+
+v0.11.0
+-------
+
+- Add ``URLColumn`` to render URLs in a data source into hyperlinks
+- Add ``EmailColumn`` to render email addresses into hyperlinks
+- ``TemplateColumn`` can now Django's template loaders to render from a file
+
+v0.10.4
+-------
+
+- Fix more bugs on Python 2.6.4, all tests now pass.
+
+v0.10.3
+-------
+
+- Fix issues for Python 2.6.4 -- thanks Steve Sapovits & brianmay
+- Reduce Django 1.3 dependency to Table.as_html -- thanks brianmay
+
+v0.10.2
+-------
+
+- Fix MANIFEST.in to include example templates, thanks TWAC.
+- Upgrade django-attest to fix problem with tests on Django 1.3.1
+
+v0.10.1
+-------
+
+- Fixed support for Django 1.4's paginator (thanks koledennix)
+- Some juggling of internal implementation. `TableData` now supports slicing
+  and returns new `TableData` instances. `BoundRows` now takes a single
+  argument `data` (a `TableData` instance).
+- Add support for `get_pagination` on `SingleTableMixin`.
+- `SingleTableMixin` and `SingleTableView` are now importable directly from
+  `django_tables2`.
+
+v0.10.0
+-------
+
+- Renamed `BoundColumn.order_by` to `order_by_alias` and never returns ``None``
+ (**Backwards incompatible**). Templates are affected if they use something
+ like:
+
+      {% querystring table.prefixed_order_by_field=column.order_by.opposite|default:column.name %}
+
+  Which should be rewritten as:
+
+      {% querystring table.prefixed_order_by_field=column.order_by_alias.next %}
+
+- Added `next` shortcut to `OrderBy` returned from `BoundColumn.order_by_alias`
+- Added `OrderByTuple.get()`
+- Deprecated `BoundColumn.sortable`, `Column.sortable`, `Table.sortable`,
+  `sortable` CSS class, `BoundColumns.itersortable`, `BoundColumns.sortable`; use `orderable` instead of
+  `sortable`.
+- Added `BoundColumn.is_ordered`
+- Introduced concept of an `order by alias`, see glossary in the docs for details.
+
+v0.9.6
+------
+
+- Fix bug that caused an ordered column's th to have no HTML attributes.
+
+v0.9.5
+------
+
+- Updated example project to add colspan on footer cell so table border renders
+  correctly in Webkit.
+- Fix regression that caused 'sortable' class on <th>.
+- Table.__init__ no longer *always* calls .order_by() on querysets, fixes #55.
+  This does introduce a slight backwards incompatibility. `Table.order_by` now
+  has the possibility of returning `None`, previously it would *always* return
+  an `OrderByTuple`.
+- DeclarativeColumnsMetaclass.__new__ now uses super()
+- Testing now requires pylint and Attest >=0.5.3
+
+v0.9.4
+------
+
+- Fix regression that caused column verbose_name values that were marked as
+  safe to be escaped. Now any verbose_name values that are instances of
+  SafeData are used unmodified.
+
+v0.9.3
+------
+
+- Fix regression in ``SingleTableMixin``.
+- Remove stray `print` statement.
+
+v0.9.2
+------
+
+- `SingleTableView` now uses `RequestConfig`. This fixes issues with
+  ``order_by_field`, `page_field`, and `per_page_field` not being honored.
+- Add `Table.Meta.per_page` and change `Table.paginate` to use it as default.
+- Add `title` template filter. It differs from Django's built-in `title` filter
+  because it operates on an individual word basis and leaves words containing
+  capitals untouched. **Warning**: use `{% load ... from ... %}` to avoid
+  inadvertantly replacing Django's builtin `title` template filter.
+- `BoundColumn.verbose_name` no longer does `capfirst`, titlising is now the
+  responsbility of `Column.header`.
+- `BoundColumn.__unicode__` now uses `BoundColumn.header` rather than
+  `BoundColumn.verbose_name`.
+
+v0.9.1
+------
+
+- Fix version in setup.py (doh)
+
+v0.9.0
+------
+
+- Add support for column attributes (see Attrs)
+- Add BoundRows.items() to yield (bound_column, cell) pairs
+- Tried to make docs more concise. Much stronger promotion of using
+  RequestConfig and {% querystring %}
 
 v0.8.4
 ------

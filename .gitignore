@@ -6,8 +6,12 @@
 /*.tmproj
 /*.egg-info/
 /*.egg
+/.tox
+/.coverage
 /MANIFEST
 /dist/
 /build/
 /docs/_build/
 /example/database.sqlite
+/example/.env
+/report.pylint
