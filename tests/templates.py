@@ -13,6 +13,10 @@ from urlparse import parse_qs
 import lxml.etree
 import lxml.html
 from .app.models import Person, Region
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 
 def parse(html):
@@ -297,3 +301,201 @@ def render_table_db_queries():
             table = PersonTable(Person.objects.all())
             RequestConfig(request).configure(table)
             render(table=table, request=request)
+
+
+@templates.test
+def localization_check():
+    import django
+    if django.VERSION < (1, 3):
+        # there's no `l10n` library tag prior to Django 1.3
+        pass
+    else:
+
+        from django_tables2.utils import override_settings, override_translation
+
+        def get_cond_localized_table(localizeit=None):
+            '''
+            helper function for defining Table class conditionally
+            '''
+            class TestTable(tables.Table):
+                name = tables.Column(verbose_name="my column", localize=localizeit)
+            return TestTable
+
+        simple_test_data = [{ 'name' : 1234.5 }]
+        expected_reults = {
+            None : '1234.5',
+            False: '1234.5',
+            True :  u'1{0}234,5'.format(u' ')  # non-breaking space
+        }
+
+        # no localization
+        html = get_cond_localized_table(None)(simple_test_data).as_html()
+        assert '<td class="name">{0}</td>'.format(expected_reults[None]) in html
+
+        # unlocalize
+        html = get_cond_localized_table(False)(simple_test_data).as_html()
+        assert '<td class="name">{0}</td>'.format(expected_reults[False]) in html
+
+        with override_settings(USE_L10N = True, USE_THOUSAND_SEPARATOR = True):
+
+            with override_translation("pl"):
+
+                # with default polish locales and enabled thousand separator
+                # 1234.5 is formatted as "1 234,5" with nbsp
+                html = get_cond_localized_table(True)(simple_test_data).as_html()
+                assert u'<td class="name">{0}</td>'.format(expected_reults[True]) in html
+
+                # with localize = False there should be no formatting
+                html = get_cond_localized_table(False)(simple_test_data).as_html()
+                assert u'<td class="name">{0}</td>'.format(expected_reults[False]) in html
+
+                # with localize = None and USE_L10N = True
+                # there should be the same formatting as with localize = True
+                html = get_cond_localized_table(None)(simple_test_data).as_html()
+                assert u'<td class="name">{0}</td>'.format(expected_reults[True]) in html
+
+
+@templates.test
+def localization_check_in_meta():
+    import django
+    if django.VERSION < (1, 3):
+        # there's no `l10n` library tag prior to Django 1.3
+        pass
+    else:
+
+        from django_tables2.utils import override_settings, override_translation
+
+        class TableNoLocalize(tables.Table):
+            name = tables.Column(verbose_name="my column")
+
+            class Meta:
+                default = "---"
+
+        class TableLocalize(tables.Table):
+            name = tables.Column(verbose_name="my column")
+
+            class Meta:
+                default = "---"
+                localize = ('name',)
+
+        class TableUnlocalize(tables.Table):
+            name = tables.Column(verbose_name="my column")
+
+            class Meta:
+                default = "---"
+                unlocalize = ('name',)
+
+        class TableLocalizePrecedence(tables.Table):
+            name = tables.Column(verbose_name="my column")
+
+            class Meta:
+                default = "---"
+                unlocalize = ('name',)
+                localize = ('name',)
+
+        simple_test_data = [{ 'name' : 1234.5 }]
+        expected_reults = {
+            None : '1234.5',
+            False: '1234.5',
+            True :  u'1{0}234,5'.format(u' ')  # non-breaking space
+        }
+
+        # No localize
+        html = TableNoLocalize(simple_test_data).as_html()
+        assert '<td class="name">{0}</td>'.format(expected_reults[None]) in html
+
+        with override_settings(USE_L10N = True, USE_THOUSAND_SEPARATOR = True):
+
+            with override_translation("pl"):
+
+                # the same as in localization_check.
+                # with localization and polish locale we get formatted output
+                html = TableNoLocalize(simple_test_data).as_html()
+                assert u'<td class="name">{0}</td>'.format(expected_reults[True]) in html
+
+                # localize
+                html = TableLocalize(simple_test_data).as_html()
+                assert u'<td class="name">{0}</td>'.format(expected_reults[True]) in html
+
+                # unlocalize
+                html = TableUnlocalize(simple_test_data).as_html()
+                assert '<td class="name">{0}</td>'.format(expected_reults[False]) in html
+
+                # test unlocalize higher precedence
+                html = TableLocalizePrecedence(simple_test_data).as_html()
+                assert '<td class="name">{0}</td>'.format(expected_reults[False]) in html
+
+
+@templates.test
+def as_csv():
+    table = CountryTable(MEMORY_DATA)
+    import csv
+
+    fp = StringIO()
+    table.as_csv(fp, include_header=False)
+
+    fp.seek(0)
+    reader = csv.reader(fp)
+
+    csv_record_count = 0
+    for row in reader:
+        csv_record_count += 1
+    assert len(table.rows) == csv_record_count
+    fp.close()
+
+
+@templates.test
+def as_csv_header():
+    table = CountryTable(MEMORY_DATA)
+    import csv
+
+    fp = StringIO()
+    table.as_csv(fp)
+
+    fp.seek(0)
+    reader = csv.reader(fp)
+    csv_header = reader.next()
+    table_column_names = map(lambda c: c.header, table.columns)
+    for column in csv_header:
+        assert column in table_column_names
+    fp.close()
+
+
+@templates.test
+def as_csv_header_exclude_columns():
+    table = CountryTable(MEMORY_DATA, exclude=['name'])
+    import csv
+
+    fp = StringIO()
+    table.as_csv(fp)
+
+    fp.seek(0)
+    reader = csv.reader(fp)
+    csv_header = reader.next()
+    assert not 'Name' in csv_header
+    row = reader.next()
+    assert len(row) == len(csv_header)
+    fp.close()
+
+
+@templates.test
+def as_csv_rows():
+    table = CountryTable([MEMORY_DATA[0]])
+    import csv
+
+    fp = StringIO()
+    table.as_csv(fp)
+
+    fp.seek(0)
+    reader = csv.DictReader(fp)
+    csv_row = reader.next()
+    table_row = table.rows[0]
+
+    assert table_row._get_value('name') == csv_row['Name']
+    assert table_row._get_value('calling_code') == int(csv_row['Phone Ext.'])
+    assert table_row._get_value('population') == int(csv_row['Population Size'])
+
+    with raises(KeyError):
+        # non visible column
+        csv_row['Currency']
+    fp.close()
