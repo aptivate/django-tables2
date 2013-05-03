@@ -471,7 +471,7 @@ class Table(StrAndUnicode):
         if include_header:
             write_row(map(lambda c: c.header, filter(should_include_column, self.columns)))
         for row in self.rows:
-            write_row(map(lambda c: row._get_value(c[column_index].name), filter(should_include_row, row.items())))
+            write_row(map(lambda c: c[1], filter(should_include_row, row.items())))
 
     @property
     def attrs(self):
