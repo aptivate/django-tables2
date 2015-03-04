@@ -1,7 +1,9 @@
 # coding: utf-8
 from attest import assert_hook, raises, Tests
-from django_tables2.utils import (Accessor, AttributeDict, OrderByTuple,
-                                  OrderBy, segment)
+from django_tables2.utils import (Accessor, AttributeDict, computed_values,
+                                  OrderByTuple, OrderBy, segment)
+import itertools
+import six
 
 
 utils = Tests()
@@ -22,9 +24,9 @@ def orderbytuple():
 
     # .get
     sentinel = object()
-    assert obt.get('b', sentinel) is obt['b'] # keying
+    assert obt.get('b', sentinel) is obt['b']  # keying
     assert obt.get('-', sentinel) is sentinel
-    assert obt.get(0,   sentinel) is obt['a'] # indexing
+    assert obt.get(0,   sentinel) is obt['a']  # indexing
     assert obt.get(3,   sentinel) is sentinel
 
     # .opposite
@@ -33,6 +35,40 @@ def orderbytuple():
     # in
     assert 'a' in obt and '-a' in obt
 
+
+@utils.test
+def orderbytuple_sort_key_multiple():
+    obt = OrderByTuple(('a', '-b'))
+    items = [
+        {"a": 1, "b": 2},
+        {"a": 1, "b": 3},
+    ]
+    assert sorted(items, key=obt.key) == [
+        {"a": 1, "b": 3},
+        {"a": 1, "b": 2},
+    ]
+
+
+@utils.test
+def orderbytuple_sort_key_empty_comes_first():
+    obt = OrderByTuple(('a'))
+    items = [
+        {"a": 1},
+        {"a": ""},
+        {"a": 2},
+    ]
+    if six.PY3:
+        assert sorted(items, key=obt.key) == [
+            {"a": ""},
+            {"a": 1},
+            {"a": 2},
+        ]
+    else:
+        assert sorted(items, key=obt.key) == [
+            {"a": 1},
+            {"a": 2},
+            {"a": ""},
+        ]
 
 @utils.test
 def orderby():
@@ -81,7 +117,7 @@ def accessor_wont_honors_alters_data():
     foo = Foo()
     with raises(ValueError):
         Accessor('delete').resolve(foo)
-    assert foo.deleted == False
+    assert foo.deleted is False
 
 
 @utils.test
@@ -97,12 +133,24 @@ def attribute_dict_handles_escaping():
 
 
 @utils.test
+def compute_values_supports_shallow_structures():
+    x = computed_values({"foo": lambda: "bar"})
+    assert x == {"foo": "bar"}
+
+
+@utils.test
+def compute_values_supports_shallow_structures():
+    x = computed_values({"foo": lambda: {"bar": lambda: "baz"}})
+    assert x == {"foo": {"bar": "baz"}}
+
+
+@utils.test
 def segment_should_return_all_candidates():
-    assert list(segment(("a", "-b", "c"), {
-            "x": ("a"),
-            "y": ("b", "-c"),
-            "-z": ("b", "-c"),
-        })) == [
-            ["x", "-y"],
-            ["x", "z"],
-        ]
+    assert set(segment(("a", "-b", "c"), {
+        "x": ("a"),
+        "y": ("b", "-c"),
+        "-z": ("b", "-c"),
+    })) == set((
+        ("x", "-y"),
+        ("x", "z"),
+    ))

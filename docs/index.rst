@@ -27,6 +27,7 @@ Tutorial
 
 1. ``pip install django-tables2``
 2. Add ``'django_tables2'`` to ``INSTALLED_APPS``
+3. Add ``'django.core.context_processors.request'`` to ``TEMPLATE_CONTEXT_PROCESSORS``
 
 We're going to run through creating a tutorial app. Let's start with a simple model::
 
@@ -259,7 +260,7 @@ By default columns are positioned in the same order as they are declared,
 however when mixing auto-generated columns (via `Table.Meta.model`) with
 manually declared columns, the column sequence becomes ambiguous.
 
-To resolve the ambiguity, columns sequence can be declard via the
+To resolve the ambiguity, columns sequence can be declared via the
 `.Table.Meta.sequence` option::
 
     class PersonTable(tables.Table):
@@ -561,9 +562,9 @@ For common use-cases the following columns are included:
 - `.DateTimeColumn` -- datetime formatting in the local timezone
 - `.FileColumn` -- renders files as links
 - `.EmailColumn` -- renders ``<a href="mailto:...">`` tags
-- `.LinkColumn` -- renders ``<a href="...">`` tags (absolute url)
+- `.LinkColumn` -- renders ``<a href="...">`` tags (compose a django url)
 - `.TemplateColumn` -- renders template code
-- `.URLColumn` -- renders ``<a href="...">`` tags (compose a django url)
+- `.URLColumn` -- renders ``<a href="...">`` tags (absolute url)
 
 
 .. _template_tags:
@@ -592,30 +593,21 @@ with a `.RequestContext` and the table will be in the variable ``table``.
 
 .. note::
 
-    This tag temporarily modifies the `.Table` object while it is being
-    rendered. It adds a ``request`` attribute to the table, which allows
-    `.Column` objects to have access to a `.RequestContext`. See
-    `.TemplateColumn` for an example.
+    This tag temporarily modifies the `.Table` object during rendering. A
+    ``context`` attribute is added to the table, providing columns with access
+    to the current context for their own rendering (e.g. `.TemplateColumn`).
 
 This tag requires that the template in which it's rendered contains the
-`~.http.HttpRequest` inside a ``request`` variable. This can be achieved by ensuring
-the ``TEMPLATE_CONTEXT_PROCESSORS`` setting contains
+`~.http.HttpRequest` inside a ``request`` variable. This can be achieved by
+ensuring the ``TEMPLATE_CONTEXT_PROCESSORS`` setting contains
 ``"django.core.context_processors.request"``. By default it is not included,
 and the setting itself is not even defined within your project's
-``settings.py``. To resolve this simply add the following to your
-``settings.py``:
+``settings.py``. To resolve this add the following to your ``settings.py``:
 
 .. sourcecode:: python
 
-    TEMPLATE_CONTEXT_PROCESSORS = (
-        "django.contrib.auth.context_processors.auth",
-        "django.core.context_processors.debug",
-        "django.core.context_processors.i18n",
-        "django.core.context_processors.media",
-        "django.core.context_processors.static",
-        "django.contrib.messages.context_processors.messages",
-        "django.core.context_processors.request",
-    )
+    from django.conf.global_settings import TEMPLATE_CONTEXT_PROCESSORS
+    TEMPLATE_CONTEXT_PROCESSORS += ('django.core.context_processors.request',)
 
 
 .. _template-tags.querystring:
@@ -638,6 +630,9 @@ we want to update the ``sort`` parameter:
     {% with "search" as key %}               # supports variables as keys
     {% querystring key="robots" %}           # ?search=robots&page=5
     {% endwith %}
+
+This tag requires the ``django.core.context_processors.request`` context
+processor, see :ref:`template-tags.render_table`.
 
 
 Template filters
@@ -787,7 +782,59 @@ When using this approach, the following options are useful:
 
 - `~.Table.Meta.sequence` -- reorder columns
 - `~.Table.Meta.fields` -- specify model fields to *include*
-- `~.Table.Meta.exclude` -- specify model fields to *excluse*
+- `~.Table.Meta.exclude` -- specify model fields to *exclude*
+
+
+.. _localization-control:
+
+Controlling localization
+========================
+
+.. note::
+    This functionality doesn't work in Django prior to version 1.3
+
+Django_tables2 allows you to define which column of a table should or should not
+be localized. For example you may want to use this feature in following use cases:
+
+* You want to format some columns representing for example numeric values in the given locales
+  even if you don't enable `USE_L10N` in your settings file.
+
+* You don't want to format primary key values in your table
+  even if you enabled `USE_L10N` in your settings file.
+
+This control is done by using two filter functions in Django's `l10n` library
+named `localize` and `unlocalize`. Check out Django docs about
+:ref:`localization <django:format-localization>` for more information about them.
+
+There are two ways of controling localization in your columns.
+
+First one is setting the `~.Column.localize` attribute in your column definition
+to `True` or `False`. Like so::
+
+     class PersonTable(tables.Table):
+        id = tables.Column(name="id", accessor="pk", localize=False)
+        class Meta:
+            model = Person
+
+
+.. note::
+    The default value of the `localize` attribute is `None` which means the formatting
+    of columns is dependant from the `USE_L10N` setting.
+
+The second way is to define a `~.Table.Meta.localize` and/or `~.Table.Meta.unlocalize`
+tuples in your tables Meta class (jutst like with `~.Table.Meta.fields`
+or `~.Table.Meta.exclude`). You can do this like so::
+
+     class PersonTable(tables.Table):
+        id = tables.Column(accessor="pk")
+        value = tables.Column(accessor="some_numerical_field")
+        class Meta:
+            model = Person
+            unlocalize = ('id',)
+            localize = ('value',)
+
+If you define the same column in both `localize` and `unlocalize` then the value
+of this column will be "unlocalized" which means that `unlocalize` has higher precedence.
 
 
 API Reference
@@ -838,6 +885,25 @@ API Reference
 
                 class Meta:
                     attrs = {"class": "paleblue"}
+
+        .. versionadded:: 0.15.0
+
+        It's possible to use callables to create *dynamic* values. A few caveats:
+
+        - It's not supported for ``dict`` keys, i.e. only values.
+        - All values will be resolved on table instantiation.
+
+        Consider this example where a unique ``id`` is given to each instance
+        of the table::
+
+            import itertools
+            counter = itertools.count()
+
+            class UniqueIdTable(tables.Table):
+                name = tables.Column()
+
+                class Meta:
+                    attrs = {"id": lambda: "table_%d" % next(counter)}
 
         .. note::
 
@@ -1004,6 +1070,24 @@ API Reference
 
             This functionality is also available via the *template* keyword
             argument to a table's constructor.
+
+
+    .. attribute:: localize
+
+        Specifies which fields should be localized in the table.
+        Read :ref:`localization-control` for more information.
+
+        :type: tuple of `unicode`
+        :default: empty tuple
+
+
+    .. attribute:: unlocalize
+
+        Specifies which fields should be unlocalized in the table.
+        Read :ref:`localization-control` for more information.
+
+        :type: tuple of `unicode`
+        :default: empty tuple
 
 
 `.BooleanColumn`

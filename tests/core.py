@@ -1,12 +1,13 @@
 # coding: utf-8
 """Test the core table functionality."""
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 from attest import assert_hook, raises, Tests, warns
 import copy
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 import django_tables2 as tables
 from django_tables2.tables import DeclarativeColumnsMetaclass
-from haystack.query import SearchQuerySet
+import six
+import itertools
 
 
 core = Tests()
@@ -69,9 +70,12 @@ def metaclass_inheritance():
     class Meta(Tweaker, DeclarativeColumnsMetaclass):
         pass
 
-    class TweakedTable(tables.Table):
+    class TweakedTableBase(tables.Table):
         __metaclass__ = Meta
         name = tables.Column()
+
+    # Python 2/3 compatible way to enable the metaclass
+    TweakedTable = Meta(str('TweakedTable'), (TweakedTableBase, ), {})
 
     table = TweakedTable([])
     assert 'name' in table.columns
@@ -81,9 +85,11 @@ def metaclass_inheritance():
     class FlippedMeta(DeclarativeColumnsMetaclass, Tweaker):
         pass
 
-    class FlippedTweakedTable(tables.Table):
-        __metaclass__ = FlippedMeta
+    class FlippedTweakedTableBase(tables.Table):
         name = tables.Column()
+
+    # Python 2/3 compatible way to enable the metaclass
+    FlippedTweakedTable = FlippedMeta(str('FlippedTweakedTable'), (FlippedTweakedTableBase, ), {})
 
     table = FlippedTweakedTable([])
     assert 'name' in table.columns
@@ -111,6 +117,18 @@ def attrs():
         class Meta:
             attrs = {"a": "b"}
     assert {"c": "d"} == TestTable4([], attrs={"c": "d"}).attrs
+
+
+@core.test
+def attrs_support_computed_values():
+    counter = itertools.count()
+
+    class TestTable(tables.Table):
+        class Meta:
+            attrs = {"id": lambda: "test_table_%d" % next(counter)}
+
+    assert {"id": "test_table_0"} == TestTable([]).attrs
+    assert {"id": "test_table_1"} == TestTable([]).attrs
 
 
 @core.test
@@ -150,8 +168,11 @@ def should_support_tuple_data_source():
 
     assert len(table.rows) == 2
 
-@core.test
+
+@core.test_if(not six.PY3)  # Haystack isn't compatible with Python 3
 def should_support_haystack_data_source():
+    from haystack.query import SearchQuerySet
+
     class PersonTable(tables.Table):
         first_name = tables.Column()
 
@@ -254,10 +275,14 @@ def ordering_different_types():
     ]
 
     table = OrderedTable(data)
-    assert u"—" == table.rows[0]['alpha']
+    assert "—" == table.rows[0]['alpha']
 
     table = OrderedTable(data, order_by='i')
-    assert 1 == table.rows[0]['i']
+    if six.PY3:
+        assert {} == table.rows[0]['i']
+    else:
+        assert 1 == table.rows[0]['i']
+
 
     table = OrderedTable(data, order_by='beta')
     assert [] == table.rows[0]['beta']

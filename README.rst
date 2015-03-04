@@ -2,6 +2,8 @@
 django-tables2 - An app for creating HTML tables
 ================================================
 
+.. figure:: https://travis-ci.org/bradleyayers/django-tables2.png
+
 django-tables2 simplifies the task of turning sets of data into HTML tables. It
 has native support for pagination and sorting. It does for HTML tables what
 ``django.forms`` does for HTML forms. e.g.
@@ -9,7 +11,6 @@ has native support for pagination and sorting. It does for HTML tables what
 .. figure:: http://dl.dropbox.com/u/33499139/django-tables2/example.png
     :align: center
     :alt: An example table rendered using django-tables2
-
 
 Its features include:
 
@@ -23,7 +24,9 @@ Its features include:
 - Template tag to enable trivial rendering to HTML.
 - Generic view mixin for use in Django 1.3.
 
-Creating a table is as simple as::
+Creating a table is as simple as:
+
+.. code-block:: python
 
     import django_tables2 as tables
 
@@ -31,7 +34,9 @@ Creating a table is as simple as::
         class Meta:
             model = Simple
 
-This would then be used in a view::
+This would then be used in a view:
+
+.. code-block:: python
 
     def simple_list(request):
         queryset = Simple.objects.all()
@@ -62,6 +67,25 @@ globally, use::
 
 Change log
 ==========
+
+v0.15.0
+-------
+
+- Add UK, Russian, Spanish, Portuguese, and Polish translations
+- Add support for computed table ``attrs``.
+
+v0.14.0
+-------
+
+- ``querystring`` and ``seturlparam`` template tags now require the request to
+  be in the context (backwards incompatible) -- #127
+- Add Travis CI support
+- Add support for Django 1.5
+- Add L10N control for columns #120 (ignored in < Django 1.3)
+- Drop Python 2.6.4 support in favour of Python 3.2 support
+- Non-queryset data ordering is different between Python 3 and 2. When
+  comparing different types, their truth values are now compared before falling
+  back to string representations of their type.
 
 v0.13.0
 -------

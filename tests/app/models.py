@@ -1,8 +1,10 @@
 # coding: utf-8
+from __future__ import unicode_literals
 from django.db import models
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy
 from django.utils.translation import ugettext
+import six
 
 
 class Person(models.Model):
@@ -34,7 +36,7 @@ class Person(models.Model):
 
     @property
     def name(self):
-        return u"%s %s" % (self.first_name, self.last_name)
+        return "%s %s" % (self.first_name, self.last_name)
 
 
 class Occupation(models.Model):
@@ -55,11 +57,14 @@ class Region(models.Model):
 
 # -- haystack -----------------------------------------------------------------
 
+if not six.PY3:  # Haystack isn't compatible with Python 3
+    from haystack import indexes
 
-from haystack import site
-from haystack.indexes import CharField, SearchIndex
+    class PersonIndex(indexes.SearchIndex, indexes.Indexable):
+        first_name = indexes.CharField(document=True)
 
-class PersonIndex(SearchIndex):
-    first_name = CharField(document=True)
+        def get_model(self):
+            return Person
 
-site.register(Person, PersonIndex)
+        def index_queryset(self, using=None):
+            return self.get_model().objects.all()
