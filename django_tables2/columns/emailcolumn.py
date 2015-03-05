@@ -30,8 +30,11 @@ class EmailColumn(BaseLinkColumn):
             email = tables.EmailColumn()
 
     """
-    def render(self, value):
-        return self.render_link("mailto:%s" % value, text=value)
+    def render(self, value, as_html=True):
+        if as_html:
+            return self.render_link("mailto:%s" % value, text=value)
+        else:
+            return value
 
     @classmethod
     def from_field(cls, field):

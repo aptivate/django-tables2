@@ -112,6 +112,7 @@ class BoundRow(object):
             'bound_column': bound_column,
             'bound_row':    self,
             'table':        self._table,
+            'as_html':      self._table.want_html,
         }
         expected = {}
 

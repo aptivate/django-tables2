@@ -407,6 +407,7 @@ class TableBase(object):
         self.order_by_field = order_by_field
         self.page_field = page_field
         self.per_page_field = per_page_field
+        self.want_html = True
         # Make a copy so that modifying this will not touch the class
         # definition. Note that this is different from forms, where the
         # copy is made available in a ``fields`` attribute.
@@ -491,10 +492,14 @@ class TableBase(object):
         def should_include_row(row_item):
             return should_include_column(row_item[column_index])
 
+        # disable converting columns to html
+        orig_want_html = self.want_html
+        self.want_html = False
         if include_header:
             write_row(map(lambda c: c.header, filter(should_include_column, self.columns)))
         for row in self.rows:
             write_row(map(lambda c: c[1], filter(should_include_row, row.items())))
+        self.want_html = orig_want_html
 
     @property
     def attrs(self):
