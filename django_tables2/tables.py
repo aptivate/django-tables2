@@ -18,6 +18,11 @@ try:
 except ImportError:
     import csv
 
+import collections
+
+from openpyxl import Workbook
+from openpyxl.cell import get_column_letter
+
 
 QUERYSET_ACCESSOR_SEPARATOR = '__'
 
@@ -500,6 +505,59 @@ class TableBase(object):
         for row in self.rows:
             write_row(map(lambda c: c[1], filter(should_include_row, row.items())))
         self.want_html = orig_want_html
+
+    # excel generation code stolen from django-tables2-reports
+    def as_excel(self, fp, title_sheet='Sheet 1', **kwargs):
+        encoding = 'utf-8'
+        column_index = 0
+        include_header = True
+        csv_args = dict(kwargs)
+
+        if 'include_header' in kwargs:
+            include_header = kwargs['include_header']
+            del csv_args['include_header']
+
+        wb = Workbook(encoding=encoding)
+        ws = wb.get_active_sheet()
+        ws.title = title_sheet
+        cell_widths = collections.defaultdict(lambda: 0)
+
+        def should_include_column(column):
+            return column.orderable and column.visible
+
+        def should_include_row(row_item):
+            return should_include_column(row_item[column_index])
+
+        # disable converting columns to html
+        orig_want_html = self.want_html
+        self.want_html = False
+        row_offset = 1
+        if include_header:
+            columns = map(lambda c: unicode(c.header), filter(should_include_column, self.columns))
+            self.write_excel_row(ws, 1, columns, cell_widths, encoding=encoding)
+            row_offset += 1
+        for rownum, row in enumerate(self.rows):
+            columns = map(lambda c: unicode(c[1]), filter(should_include_row, row.items()))
+            self.write_excel_row(ws, rownum + row_offset, columns, cell_widths, encoding=encoding)
+
+        # Roughly autosize output column widths based on maximum column size
+        # and add bold style for the header
+        for i, cell_width in cell_widths.items():
+            # TODO: get bold working
+            # ws.cell(column=i, row=1).style.font.bold = True
+            ws.column_dimensions[get_column_letter(i)].width = cell_width
+
+        wb.save(fp)
+        self.want_html = orig_want_html
+
+    def write_excel_row(self, ws, lno, cell_text, cell_widths, encoding='utf-8'):
+        for col_no, cell_text in enumerate(cell_text):
+            xl_col_no = col_no + 1
+            # cell_text = cell_text.decode(encoding)
+            ws.cell(column=xl_col_no, row=lno).value = cell_text
+            cell_widths[xl_col_no] = max(
+                cell_widths[xl_col_no],
+                len(cell_text))
 
     @property
     def attrs(self):
