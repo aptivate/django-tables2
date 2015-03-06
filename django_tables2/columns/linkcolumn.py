@@ -26,7 +26,7 @@ class BaseLinkColumn(Column):
         kwargs['attrs'] = attrs
         super(BaseLinkColumn, self).__init__(*args, **kwargs)
 
-    def render_link(self, uri, text, attrs=None):
+    def render_link(self, uri, text, attrs=None, as_html=True):
         """
         Render a hyperlink.
 
@@ -34,6 +34,8 @@ class BaseLinkColumn(Column):
         :param  text: value wrapped in ``<a></a>``
         :param attrs: ``<a>`` tag attributes
         """
+        if not as_html:
+            return text
         attrs = AttributeDict(attrs if attrs is not None else
                               self.attrs.get('a', {}))
         attrs['href'] = uri
@@ -103,7 +105,7 @@ class LinkColumn(BaseLinkColumn):
         self.kwargs = kwargs
         self.current_app = current_app
 
-    def render(self, value, record, bound_column):  # pylint: disable=W0221
+    def render(self, value, record, bound_column, as_html=True):  # pylint: disable=W0221
         viewname = (self.viewname.resolve(record)
                     if isinstance(self.viewname, A)
                     else self.viewname)
@@ -129,4 +131,7 @@ class LinkColumn(BaseLinkColumn):
             params['current_app'] = (self.current_app.resolve(record)
                                      if isinstance(self.current_app, A)
                                      else self.current_app)
-        return self.render_link(reverse(viewname, **params), text=value)
+        return self.render_link(
+            reverse(viewname, **params),
+            text=value,
+            as_html=as_html)
