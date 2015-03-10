@@ -493,6 +493,20 @@ def kwargs():
 
 
 @linkcolumn.test
+def no_html_when_not_want_html():
+    class PersonTable(tables.Table):
+        a = tables.LinkColumn('occupation', kwargs={"pk": A('a')})
+
+    table = PersonTable([{"a": 12345}, {"a": 67890}])
+    table.want_html = False
+    html = table.as_html()
+    assert '12345' in html
+    assert '67890' in html
+    assert reverse("occupation", kwargs={"pk": 12345}) not in html
+    assert reverse("occupation", kwargs={"pk": 67890}) not in html
+
+
+@linkcolumn.test
 def html_escape_value():
     class PersonTable(tables.Table):
         name = tables.LinkColumn("escaping", kwargs={"pk": A("pk")})
@@ -581,6 +595,16 @@ def should_turn_url_into_hyperlink():
 
 
 @urlcolumn.test
+def should_not_turn_url_into_hyperlink_if_not_want_html():
+    class TestTable(tables.Table):
+        url = tables.URLColumn()
+
+    table = TestTable([{"url": "http://example.com"}])
+    table.want_html = False
+    assert table.rows[0]["url"] == 'http://example.com'
+
+
+@urlcolumn.test
 def should_be_used_for_urlfields():
     class URLModel(models.Model):
         field = models.URLField()
@@ -602,6 +626,16 @@ def should_turn_email_address_into_hyperlink():
 
     table = Table([{"email": "test@example.com"}])
     assert table.rows[0]["email"] == '<a href="mailto:test@example.com">test@example.com</a>'
+
+
+@emailcolumn.test
+def should_not_turn_email_address_into_hyperlink_if_not_want_html():
+    class Table(tables.Table):
+        email = tables.EmailColumn()
+
+    table = Table([{"email": "test@example.com"}])
+    table.want_html = False
+    assert table.rows[0]["email"] == 'test@example.com'
 
 
 @emailcolumn.test
