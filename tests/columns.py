@@ -121,7 +121,7 @@ def column_render_supports_kwargs():
     class TestColumn(tables.Column):
         def render(self, **kwargs):
             expected = set(("record", "value", "column", "bound_column",
-                           "bound_row", "table"))
+                           "bound_row", "table", "as_html"))
             actual = set(kwargs.keys())
             assert actual == expected
             return "success"

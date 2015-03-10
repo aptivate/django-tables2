@@ -24,7 +24,7 @@ class URLColumn(BaseLinkColumn):
 
     """
     def render(self, value, as_html=True):
-        return self.render_link(value, value, as_html)
+        return self.render_link(value, value, as_html=as_html)
 
     @classmethod
     def from_field(cls, field):
