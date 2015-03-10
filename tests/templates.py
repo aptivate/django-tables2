@@ -358,7 +358,7 @@ def as_csv_header_exclude_columns():
     fp.seek(0)
     reader = csv.reader(fp)
     csv_header = reader.next()
-    assert not 'Name' in csv_header
+    assert 'Name' not in csv_header
     row = reader.next()
     assert len(row) == len(csv_header)
     fp.close()
@@ -384,6 +384,111 @@ def as_csv_rows():
     with raises(KeyError):
         # non visible column
         csv_row['Currency']
+    fp.close()
+
+
+@templates.test
+def as_excel():
+    table = CountryTable(MEMORY_DATA)
+
+    fp = StringIO()
+    table.as_excel(fp, include_header=False)
+
+    fp.seek(0)
+    from openpyxl import load_workbook
+    wb = load_workbook(fp)
+    sheet = wb.get_sheet_by_name('Sheet 1')
+
+    assert len(table.rows) == len(sheet.rows)
+    fp.close()
+
+
+@templates.test
+def as_excel_header():
+    table = CountryTable(MEMORY_DATA)
+
+    fp = StringIO()
+    table.as_excel(fp, include_header=True)
+
+    fp.seek(0)
+    from openpyxl import load_workbook
+    wb = load_workbook(fp)
+    sheet = wb.get_sheet_by_name('Sheet 1')
+    assert len(table.rows) == len(sheet.rows) - 1
+
+    table_column_names = map(lambda c: c.header, table.columns)
+
+    for column in sheet.rows[0]:
+        assert column.value in table_column_names
+    fp.close()
+
+
+@templates.test
+def as_excel_sheet_name():
+    table = CountryTable(MEMORY_DATA)
+
+    fp = StringIO()
+    table.as_excel(fp, title_sheet='My Sheet', include_header=True)
+
+    fp.seek(0)
+    from openpyxl import load_workbook
+    wb = load_workbook(fp)
+    sheet = wb.get_sheet_by_name('My Sheet')
+    assert len(table.rows) == len(sheet.rows) - 1
+
+    table_column_names = map(lambda c: c.header, table.columns)
+
+    for column in sheet.rows[0]:
+        assert column.value in table_column_names
+    fp.close()
+
+
+@templates.test
+def as_excel_header_exclude_columns():
+    table = CountryTable(MEMORY_DATA, exclude=['name'])
+
+    fp = StringIO()
+    table.as_excel(fp, include_header=True)
+
+    fp.seek(0)
+    from openpyxl import load_workbook
+    wb = load_workbook(fp)
+    sheet = wb.get_sheet_by_name('Sheet 1')
+    assert 'Name' not in [c.value for c in sheet.rows[0]]
+    assert len(sheet.rows[0]) == len(sheet.rows[1])
+    fp.close()
+
+
+@templates.test
+def as_excel_rows():
+    table = CountryTable([MEMORY_DATA[0]])
+
+    fp = StringIO()
+    table.as_excel(fp, include_header=True)
+
+    fp.seek(0)
+    from openpyxl import load_workbook
+    wb = load_workbook(fp)
+    sheet = wb.get_sheet_by_name('Sheet 1')
+
+    def get_value_under_col_header(header_val):
+        col_index = None
+        for i, cell in enumerate(sheet.rows[0]):
+            if cell.value == header_val:
+                col_index = i
+        if col_index is None:
+            raise KeyError
+        return sheet.rows[1][col_index].value
+
+    table_row = table.rows[0]
+
+    assert table_row._get_value('name') == get_value_under_col_header('Name')
+    assert table_row._get_value('calling_code') == int(get_value_under_col_header('Phone Ext.'))
+    assert table_row._get_value('population') == int(get_value_under_col_header('Population Size'))
+
+    with raises(KeyError):
+        # non visible column
+        get_value_under_col_header('Currency')
     fp.close()
 
 
